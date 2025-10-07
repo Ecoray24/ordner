@@ -1,0 +1,24 @@
+{
+  "name": "3d-editor-backend",
+  "version": "1.0.0",
+  "description": "Backend za 3D konfigurator - slanje narudžbi putem e-maila",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2",
+    "multer": "^1.4.4",
+    "nodemailer": "^6.9.8"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [],
+  "author": "tvoj-ime",
+  "license": "ISC"
+}

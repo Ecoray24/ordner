@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>3D-Editor</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0; overflow: hidden;
+      width: 100%; height: 100%; background: #ccc;
+      font-family: sans-serif;
+    }
+    #renderCanvas { width: 100%; height: 100%; display: block; }
+    #controls {
+      position: absolute; top: 10px; left: 10px; z-index: 100;
+      background: rgba(255,255,255,0.8);
+      padding: 10px;
+      border-radius: 6px;
+      max-width: 300px;
+    }
+    #controls > * { margin-bottom: 8px; }
+    #size-buttons { display: flex; flex-direction: column; gap: 4px; }
+    .size-button {
+      padding: 6px 10px;
+      background: #2196F3;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .size-button:hover { background: #1976D2; }
+    #cart {
+      position: absolute; top: 11px; right: 10px;
+      background: white; border: 1px solid #999;
+      border-radius: 8px; padding: 10px; z-index: 200;
+      width: 200px;
+    }
+    .cart-item {
+      display: flex; align-items: center; gap: 6px;
+      margin-bottom: 6px;
+    }
+    .cart-item img {
+      width: 32px; height: 32px; object-fit: cover;
+      border: 1px solid #ccc;
+    }
+    .remove-btn {
+      color: red; cursor: pointer; font-weight: bold;
+    }
+    @media (max-width: 768px) {
+      #controls {
+        top: auto;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 95%;
+        max-width: none;
+        font-size: 14px;
+      }
+      #cart {
+        top: 10px;
+        right: 10px;
+        width: 160px;
+        font-size: 13px;
+      }
+      #cart h3 { font-size: 15px; }
+      .size-button {
+        font-size: 15px;
+        padding: 5px 8px;
+      }
+      .cart-item img {
+        width: 28px;
+        height: 28px;
+      }
+      .remove-btn { font-size: 18px; }
+    }
+    @media (max-width: 480px) {
+      #controls { font-size: 12px; }
+      .size-button {
+        font-size: 12px;
+        padding: 4px 6px;
+      }
+      #cart {
+        width: 140px;
+        font-size: 12px;
+      }
+      #cart h3 { font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="renderCanvas"></canvas>
+
+  <div id="controls">
+    <div>
+      <label>Seite auswählen:
+        <select id="material-select">
+          <option disabled selected>Wird geladen...</option>
+        </select>
+      </label>
+    </div>
+
+    <div>
+      <label>Bild hochladen:
+        <input type="file" id="upload-texture" accept="image/*" />
+      </label>
+    </div>
+
+    <div>
+      <label>Farbe auswählen:
+        <input type="color" id="color-picker" value="#ffffff" />
+      </label>
+    </div>
+
+    <div>
+      <label>Bild anpassen X:
+        <input type="range" id="texture-scale-x" min="0.1" max="5" step="0.1" value="1" />
+      </label>
+    </div>
+    <div>
+      <label>Bild anpassen Y:
+        <input type="range" id="texture-scale-y" min="0.1" max="5" step="0.1" value="1" />
+      </label>
+    </div>
+
+    <div>
+      <label>Bild-Auflösung:
+        <select id="texture-resolution">
+          <option value="256">256 x 256</option>
+          <option value="512" selected>512 x 512</option>
+          <option value="1024">1024 x 1024</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="size-buttons">
+      <button class="size-button" onclick="addToCart(1.0, 0.5)">100 cm x 50 cm</button>
+      <button class="size-button" onclick="addToCart(0.7, 0.5)">70 cm x 50 cm</button>
+      <button class="size-button" onclick="addToCart(0.5, 0.35)">50 cm x 35 cm</button>
+    </div>
+
+    <div>
+      <button id="reset-button" style="padding: 6px 10px; background:#3672f4; color:white; border:none; border-radius:4px; cursor:pointer;">Reset</button>
+    </div>
+  </div>
+
+  <div id="cart">
+  <div style="display: flex; align-items: center; gap: 20px;">
+    <span style="font-size: 17px;">🛒</span>
+    <span style="font-family: Arial, sans-serif; font-size: 15px; font-weight: bold;">Warenkorb</span>
+  </div>
+  <ul id="cart-list" style="list-style: none; padding: 0; margin: 0;"></ul>
+</div>
+
+
+  <!-- 🔲 Fullscreen dugme -->
+<div style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 202;">
+  <button onclick="toggleFullscreen()" style="padding: 8px 12px; background: #ffffff; color: rgb(7, 6, 6); border: none; border-radius: 4px; cursor: pointer;">
+    🔲 Vollbild
+  </button>
+</div>
+
+  <div style="position: absolute; top: 12px; right: 235px; z-index: 201;">
+  <button onclick="openModal()" style="padding: 0px 12px; background: #ffffff; color: rgb(6, 6, 6); border: none; border-radius: 8px; cursor: pointer;">
+  <span style="font-size: 33px; vertical-align: middle;">📦</span> 
+  <span style="font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; color: #333;">Bestellen</span>
+</button>
+
+
+  <div id="order-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; position: relative;">
+      <h3>📝 Bestellung abschließen</h3>
+      <label>Name:</label>
+      <input type="text" id="order-name" style="width: 100%; padding: 8px; margin-bottom: 10px;" />
+
+      <label>Adresse:</label>
+      <input type="text" id="order-address" style="width: 100%; padding: 8px; margin-bottom: 10px;" />
+
+      <label>Email:</label>
+      <input type="email" id="order-email" style="width: 100%; padding: 8px; margin-bottom: 10px;" />
+
+      <div style="display: flex; justify-content: space-between; margin-top: 15px;">
+        <button onclick="submitOrder()" style="padding: 8px 12px; background: #2196F3; color: white; border: none; border-radius: 4px;">Absenden</button>
+        <button onclick="closeModal()" style="padding: 8px 12px; background: #f44336; color: white; border: none; border-radius: 4px;">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <script src="https://cdn.babylonjs.com/loaders/babylon.glTF2FileLoader.min.js"></script>
+
+  <script>
+    const canvas = document.getElementById("renderCanvas");
+    const engine = new BABYLON.Engine(canvas, true);
+    let scene;
+
+    let selectedMaterial = null;
+    let currentTextureFile = null;
+    let currentTextureThumb = null;
+    let currentBaseColor = BABYLON.Color3.White();
+
+    const cart = [];  // array of item objects
+    let filteredMaterials = [];
+
+    async function createScene() {
+      scene = new BABYLON.Scene(engine);
+      const camera = new BABYLON.ArcRotateCamera("camera", Math.PI/2, Math.PI/2.5, 3, BABYLON.Vector3.Zero(), scene);
+      camera.attachControl(canvas, true);
+      let autoRotate = true;
+
+      scene.onPointerObservable.add(() => { autoRotate = false; }, BABYLON.PointerEventTypes.POINTERDOWN);
+      let cameraAngle = 0;
+      scene.registerBeforeRender(() => {
+        if (autoRotate) {
+          cameraAngle += 0.002;
+          camera.alpha = cameraAngle;
+        }
+      });
+
+      camera.lowerRadiusLimit = 1.7;
+      camera.upperRadiusLimit = 10;
+      camera.wheelDeltaPercentage = 0.02;
+
+      const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(1, 1, 0), scene);
+      light.intensity = 2;
+
+      await BABYLON.SceneLoader.AppendAsync("", "lamp.glb", scene);
+      scene.createDefaultEnvironment();
+
+      populateMaterialList();
+    }
+
+    function populateMaterialList() {
+      const sel = document.getElementById("material-select");
+      sel.innerHTML = "";
+
+      const allowed = ["Front", "Back"];
+      filteredMaterials = scene.materials
+  .filter(mat => allowed.includes(mat.name))
+  .sort((a, b) => {
+    if (a.name === "Front") return -1;
+    if (b.name === "Front") return 1;
+    return 0;
+  });
+      filteredMaterials.forEach((mat, idx) => {
+        const opt = document.createElement("option");
+        opt.value = idx;
+        opt.textContent = mat.name;
+        sel.appendChild(opt);
+      });
+
+      if (filteredMaterials.length > 0) {
+        selectedMaterial = filteredMaterials[0];
+        sel.value = 0;
+      }
+
+      sel.addEventListener("change", (ev) => {
+        const idx = parseInt(ev.target.value);
+        selectedMaterial = filteredMaterials[idx];
+        applyTextureOrColorToMaterial(selectedMaterial);
+        updateTextureScaleControls();
+      });
+    }
+
+    createScene().then(() => {
+      engine.runRenderLoop(() => {
+        if (scene) scene.render();
+      });
+    });
+    window.addEventListener("resize", () => engine.resize());
+
+    function applyTextureOrColorToMaterial(mat) {
+      if (!mat) return;
+      if (currentTexture) {
+        mat.albedoTexture = currentTexture;
+        mat.albedoColor = BABYLON.Color3.White();
+        mat.albedoTexture.uScale = parseFloat(document.getElementById("texture-scale-x").value);
+        mat.albedoTexture.vScale = parseFloat(document.getElementById("texture-scale-y").value);
+      } else if (currentBaseColor) {
+        mat.albedoTexture = null;
+        mat.albedoColor = currentBaseColor;
+      } else {
+        mat.albedoTexture = null;
+        mat.albedoColor = BABYLON.Color3.White();
+      }
+    }
+
+    function resizeImage(image, size, callback) {
+      const canvas2 = document.createElement("canvas");
+      canvas2.width = canvas2.height = size;
+      const ctx = canvas2.getContext("2d");
+
+      let aspect = image.width / image.height;
+      let drawWidth, drawHeight;
+      if (aspect > 1) {
+        drawWidth = size;
+        drawHeight = size / aspect;
+      } else {
+        drawHeight = size;
+        drawWidth = size * aspect;
+      }
+
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(
+        image, 0, 0, image.width, image.height,
+        (size - drawWidth)/2, (size - drawHeight)/2, drawWidth, drawHeight
+      );
+      callback(canvas2.toDataURL());
+    }
+
+    document.getElementById("upload-texture").addEventListener("change", (ev) => {
+      const file = ev.target.files[0];
+      if (!file || !selectedMaterial) return;
+      currentTextureFile = file;
+      const resolution = parseInt(document.getElementById("texture-resolution").value);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          resizeImage(img, resolution, (resizedDataUrl) => {
+            currentTexture = new BABYLON.Texture(resizedDataUrl, scene, false, false, BABYLON.Texture.TRILINEAR_SAMPLINGMODE);
+            currentTexture.uScale = parseFloat(document.getElementById("texture-scale-x").value);
+            currentTexture.vScale = parseFloat(document.getElementById("texture-scale-y").value);
+            currentTextureThumb = resizedDataUrl;
+            currentBaseColor = null;
+            applyTextureOrColorToMaterial(selectedMaterial);
+          });
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById("color-picker").addEventListener("input", (ev) => {
+      if (!selectedMaterial) return;
+      currentTexture = null;
+      currentBaseColor = BABYLON.Color3.FromHexString(ev.target.value);
+      currentTextureThumb = null;
+      applyTextureOrColorToMaterial(selectedMaterial);
+    });
+
+    document.getElementById("texture-scale-x").addEventListener("input", (e) => {
+      const scaleX = parseFloat(e.target.value);
+      if (selectedMaterial?.albedoTexture) selectedMaterial.albedoTexture.uScale = scaleX;
+    });
+    document.getElementById("texture-scale-y").addEventListener("input", (e) => {
+      const scaleY = parseFloat(e.target.value);
+      if (selectedMaterial?.albedoTexture) selectedMaterial.albedoTexture.vScale = scaleY;
+    });
+
+    function updateTextureScaleControls() {
+      if (selectedMaterial && selectedMaterial.albedoTexture) {
+        document.getElementById("texture-scale-x").value = selectedMaterial.albedoTexture.uScale || 1;
+        document.getElementById("texture-scale-y").value = selectedMaterial.albedoTexture.vScale || 1;
+      } else {
+        document.getElementById("texture-scale-x").value = 1;
+        document.getElementById("texture-scale-y").value = 1;
+      }
+    }
+
+    document.getElementById("reset-button").addEventListener("click", () => {
+      currentTexture = null;
+      currentBaseColor = BABYLON.Color3.White();
+      document.getElementById("color-picker").value = "#ffffff";
+      document.getElementById("texture-scale-x").value = 1;
+      document.getElementById("texture-scale-y").value = 1;
+      document.getElementById("texture-resolution").value = 512;
+      document.getElementById("upload-texture").value = "";
+
+      const sel = document.getElementById("material-select");
+      if (filteredMaterials.length > 0) {
+        sel.selectedIndex = 0;
+        selectedMaterial = filteredMaterials[0];
+        applyTextureOrColorToMaterial(selectedMaterial);
+      }
+      updateTextureScaleControls();
+    });
+
+    function addToCart(width, height) {
+      // Kreiraj item koji sadrži front + back info
+      const item = {
+        width: width,
+        height: height,
+        front: null,
+        back: null
+      };
+
+      // Za svaki materijal (Front i Back) dohvati stanje (boja ili slika)
+      filteredMaterials.forEach(mat => {
+        const config = {
+          side: mat.name,  // "Front" ili "Back"
+          materialName: mat.name,
+          type: null,      // "image" ili "color"
+          value: null      // base64 image ili HEX boja
+        };
+
+        if (mat.albedoTexture) {
+          config.type = "image";
+          // Ako textura ima URL
+          if (mat.albedoTexture._texture && mat.albedoTexture._texture.url) {
+            config.value = mat.albedoTexture._texture.url;
+          } else if (currentTextureThumb) {
+            config.value = currentTextureThumb;
+          } else {
+            config.value = null;
+          }
+        } else if (mat.albedoColor) {
+          config.type = "color";
+          config.value = mat.albedoColor.toHexString();
+        }
+
+        if (mat.name === "Front") {
+          item.front = config;
+        } else if (mat.name === "Back") {
+          item.back = config;
+        }
+      });
+
+      cart.push(item);
+      renderCart();
+    }
+
+    function renderCart() {
+      const ul = document.getElementById("cart-list");
+      ul.innerHTML = "";
+      cart.forEach((item, idx) => {
+        const li = document.createElement("li");
+        li.className = "cart-item";
+
+        // Prikaz thumbnail — ako front ima sliku, koristi front.value ili back
+        let thumb = null;
+        if (item.front && item.front.type === "image") thumb = item.front.value;
+        else if (item.back && item.back.type === "image") thumb = item.back.value;
+
+        const img = document.createElement("img");
+        img.src = thumb || "";  // ako nema slike, prazan
+        li.appendChild(img);
+
+        const info = document.createElement("span");
+        let tekst = `${(item.width * 100).toFixed(0)} x ${(item.height * 100).toFixed(0)} cm\n`;
+        if (item.front) {
+          tekst += `Front: ${item.front.type === "color" ? item.front.value : "image"}\n`;
+        }
+        if (item.back) {
+          tekst += `Back: ${item.back.type === "color" ? item.back.value : "image"}`;
+        }
+        info.innerText = tekst;
+
+        const rm = document.createElement("span");
+        rm.className = "remove-btn";
+        rm.innerText = "×";
+        rm.onclick = () => {
+          cart.splice(idx, 1);
+          renderCart();
+        };
+
+        li.appendChild(info);
+        li.appendChild(rm);
+        ul.appendChild(li);
+      });
+    }
+
+    function openModal() {
+      if (cart.length === 0) {
+        alert("🛒 Der Warenkorb ist leer. Bitte fügen Sie mindestens ein Produkt hinzu.");
+        return;
+      }
+      document.getElementById("order-modal").style.display = "flex";
+    }
+    function closeModal() {
+      document.getElementById("order-modal").style.display = "none";
+    }
+function toggleFullscreen() {
+  const doc = document.documentElement;
+  if (!document.fullscreenElement) {
+    if (doc.requestFullscreen) {
+      doc.requestFullscreen();
+    } else if (doc.webkitRequestFullscreen) {
+      doc.webkitRequestFullscreen();
+    } else if (doc.msRequestFullscreen) {
+      doc.msRequestFullscreen();
+    }
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    } else if (document.msExitFullscreen) {
+      document.msExitFullscreen();
+    }
+  }
+}
+
+    async function submitOrder() {
+  const name = document.getElementById("order-name").value.trim();
+  const address = document.getElementById("order-address").value.trim();
+  const email = document.getElementById("order-email").value.trim();
+
+  if (!name || !address || !email) {
+    alert("Bitte füllen Sie alle Felder aus.");
+    return;
+  }
+
+  const form = new FormData();
+  form.append("name", name);
+  form.append("address", address);
+  form.append("email", email);
+
+  // Dodaj slike iz korpe ako postoje
+  cart.forEach((item, index) => {
+    ["front", "back"].forEach((side) => {
+      const config = item[side];
+      if (config && config.type === "image" && config.value.startsWith("data:image")) {
+        const byteString = atob(config.value.split(',')[1]);
+        const mimeString = config.value.split(',')[0].split(':')[1].split(';')[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+          ia[i] = byteString.charCodeAt(i);
+        }
+        const blob = new Blob([ab], { type: mimeString });
+        form.append(`${side}_${index}`, blob, `${side}_${index}.png`);
+      }
+    });
+  });
+
+  // Dodaj cart kao JSON fajl
+  const cartBlob = new Blob([JSON.stringify(cart)], { type: "application/json" });
+  form.append("cart", cartBlob, "cart.json");
+
+  try {
+    const res = await fetch("https://ordner.onrender.com/send-order", {
+      method: "POST",
+      body: form
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert("Vielen Dank für Ihre Bestellung! Ihre E-Mail wurde gesendet.");
+      closeModal();
+      document.getElementById("order-name").value = "";
+      document.getElementById("order-address").value = "";
+      document.getElementById("order-email").value = "";
+      cart.length = 0;
+      renderCart();
+      currentTextureFile = null;
+    } else {
+      console.error("Server error:", data.error);
+      alert("Fehler beim Senden der E-Mail: " + (data.error || "unknown"));
+    }
+  } catch (err) {
+    console.error("Network error:", err);
+    alert("Netzwerkfehler beim Senden.");
+  }
+}
+
+  </script>
+
+</body>
+</html>
